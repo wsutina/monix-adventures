@@ -16,7 +16,7 @@ object TaskAdventures {
     * See https://monix.io/docs/2x/eval/task.html#simple-builders for ways to construct Tasks
     */
   def immediatelyExecutingTask(): Task[Int] = {
-    ???
+    Task.now(43) // on execution is always successful
   }
 
   /**

@@ -23,7 +23,7 @@ object TaskAdventures {
     * 2.	Create a Task which when executed logs “hello world” (using `logger`)
     */
   def helloWorld(logger: String => Unit): Task[Unit] = {
-    ???
+    Task.eval(logger("hello world"))
   }
 
   /**

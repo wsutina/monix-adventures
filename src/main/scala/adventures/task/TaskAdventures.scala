@@ -32,7 +32,7 @@ object TaskAdventures {
     * See https://monix.io/docs/2x/eval/task.html#taskraiseerror
     */
   def alwaysFailingTask(): Task[Unit] = {
-    ???
+    Task.raiseError(new Exception)
   }
 
   /**
@@ -40,9 +40,9 @@ object TaskAdventures {
     *
     */
   def getCurrentTempInF(currentTemp: () => Task[Int]): Task[Int] = {
-//    def cToF(c: Int) = c * 9 / 5 + 32
+    def cToF(c: Int) = c * 9 / 5 + 32
 
-    ???
+    currentTemp().map(cToF)
   }
 
   /**
@@ -51,7 +51,7 @@ object TaskAdventures {
     * Make use of both of these services to return the current temperature in fahrenheit.
     */
   def getCurrentTempInFAgain(currentTemp: () => Task[Int], converter: Int => Task[Int]): Task[Int] = {
-    ???
+    currentTemp().flatMap(converter)
   }
 
   /**
@@ -63,7 +63,8 @@ object TaskAdventures {
     * in tests.
     */
   def calculateStringComplexityInParallel(strings: List[String], complexity: String => Task[Int]): Task[Int] = {
-    ???
+    val listOfTask: List[Task[Int]] = strings.map(complexity)
+    Task.gather(listOfTask).map(_.foldLeft(0)(_ + _))
   }
 
   /**

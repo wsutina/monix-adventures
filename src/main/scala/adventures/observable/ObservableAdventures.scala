@@ -1,10 +1,13 @@
 package adventures.observable
 
 import adventures.observable.model.{PageId, PaginatedResult, SourceRecord, TargetRecord}
+import adventures.task.TaskAdventures
 import monix.eval.Task
-import monix.reactive.Observable
+import monix.reactive.{Consumer, Observable, OverflowStrategy}
 
 import scala.concurrent.Future
+import scala.concurrent.duration._
+import scala.util.{Failure, Success, Try}
 
 /**
   * If elements from a list can be operated on synchronously as a List[A], then the equivalent data structure where
@@ -50,7 +53,20 @@ object ObservableAdventures {
     * @param sourceRecords
     * @return
     */
-  def transform(sourceRecords: Observable[SourceRecord]): Observable[TargetRecord] = ???
+  def transform(sourceRecords: Observable[SourceRecord]): Observable[TargetRecord] = {
+    def sourceRecordConverter(sourceRecord: SourceRecord): Observable[TargetRecord] = {
+      val price = Try {
+        sourceRecord.price.toDouble
+      }
+
+      price match {
+        case Success(doublePrice) => Observable(TargetRecord(sourceRecord.id, doublePrice))
+        case Failure(_) => Observable.empty
+      }
+    }
+
+    sourceRecords.flatMap(sourceRecordConverter(_))
+  }
 
   /**
     * Elastic search supports saving batches of 5 records. This is a remote async call so the result is represented
@@ -59,7 +75,11 @@ object ObservableAdventures {
     * Implement the following method so it calls elasticSearchLoad with batches of 5 records and returns the number
     * of loaded items.
     */
-  def load(targetRecords: Observable[TargetRecord], elasticSearchLoad: Seq[TargetRecord] => Task[Unit]): Observable[Int] = ???
+  def load(targetRecords: Observable[TargetRecord], elasticSearchLoad: Seq[TargetRecord] => Task[Unit]): Observable[Int] = {
+    targetRecords.bufferTumbling(5).flatMap { records: Seq[TargetRecord] =>
+      Observable.fromTask(elasticSearchLoad(records).map(_ => records.length))
+    }
+  }
 
   /**
     * Elasticsearch supports saving batches of 5 records.  This is a remote async call so the result is represented
@@ -69,7 +89,9 @@ object ObservableAdventures {
     * Returns the number of records which were saved to elastic search.
     */
   def loadWithRetry(targetRecords: Observable[TargetRecord], elasticSearchLoad: Seq[TargetRecord] => Task[Unit]): Observable[Int] = {
-    load(targetRecords, elasticSearchLoad)
+    def myElasticSearchLoad(records: Seq[TargetRecord]) = TaskAdventures.retryOnFailure(elasticSearchLoad(records), 5, 1.second)
+
+    load(targetRecords, myElasticSearchLoad)
   }
 
   /**
@@ -77,7 +99,10 @@ object ObservableAdventures {
     *
     * The final result should be the number of records which were saved to ElasticSearch.
     */
-  def execute(loadedObservable: Observable[Int]): Task[Int] = ???
+  def execute(loadedObservable: Observable[Int]): Task[Int] = {
+    val consumer = Consumer.foldLeft(0) { (acc: Int, elem: Int) => elem + acc }
+    loadedObservable.consumeWith(consumer)
+  }
 
   /**
     * Create an Observable from which all records can be read.
@@ -93,8 +118,19 @@ object ObservableAdventures {
     * Look at
     * Observable.++ AND
     * Observable.tailRecM OR Observable.flatMap
-    */
-  def readFromPaginatedDatasource(readPage: PageId => Task[PaginatedResult]): Observable[SourceRecord] = ???
+    **/
+  def readFromPaginatedDatasource(readPage: PageId => Task[PaginatedResult]): Observable[SourceRecord] = {
+    def foo(maybePageId: Option[PageId]): Observable[SourceRecord] = {
+      maybePageId match {
+        case Some(pageId) =>
+          Observable.fromTask(readPage(pageId)).flatMap(paginated => listToObservable(paginated.results) ++ foo(paginated.nextPage))
+        case None =>
+          Observable.empty
+      }
+    }
+
+    foo(Some(PageId.FirstPage))
+  }
 
   /**
     * Lets say reading a page takes 1 second and loading a batch of records takes 1 second.  If there are 20 pages (each
@@ -106,7 +142,7 @@ object ObservableAdventures {
     */
   def readTransformAndLoadAndExecute(readPage: PageId => Task[PaginatedResult], elasticSearchLoad: Seq[TargetRecord] => Task[Unit]): Task[Int] = {
     // Note it wouldn't look like this in the prod code, but more a factor of combining our building blocks above.
-    val readObservable = readFromPaginatedDatasource(readPage)
+    val readObservable = readFromPaginatedDatasource(readPage).asyncBoundary(OverflowStrategy.BackPressure(10))
     val transformedObservable = transform(readObservable)
     execute(load(transformedObservable, elasticSearchLoad))
   }

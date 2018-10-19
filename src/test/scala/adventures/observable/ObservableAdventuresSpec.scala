@@ -73,7 +73,7 @@ class ObservableAdventuresSpec extends Specification {
       Await.result(task.runAsync, 10.seconds) must beEqualTo(12)
     }
 
-    "handing a paginated feed" should {
+    "handling a paginated feed" should {
       "handle a small set of data" in {
         val pages = Map(
           PageId.FirstPage -> PaginatedResult(List(SourceRecord("1", "1.1")), Some(PageId("2"))),

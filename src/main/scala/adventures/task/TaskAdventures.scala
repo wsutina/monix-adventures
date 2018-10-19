@@ -79,16 +79,20 @@ object TaskAdventures {
     * Note that you will also need to convert from Task to Task.Par for the cats sequence operator to execute the tasks
     * in parallel.
     */
-  def calculateStringComplexityInParallelAgain(strings: List[String], complexity: String => Task[Int]): Task[Int] = {
-    ???
-  }
+  def calculateStringComplexityInParallelAgain(strings: List[String], complexity: String => Task[Int]): Task[Int] = ???
 
   /**
     * 7.	Write a function which given a Task, will reattempt that task after a specified delay for a maximum number of
     * attempts if the supplied Task fails.
     */
   def retryOnFailure[T](t: Task[T], maxRetries: Int, delay: FiniteDuration): Task[T] = {
-    ???
+    t.onErrorHandleWith(error => {
+      if (maxRetries > 0 ) {
+        retryOnFailure(t, maxRetries - 1, delay).delayExecution(delay)
+      } else {
+        Task.raiseError(error)
+      }
+    })
   }
 
 }

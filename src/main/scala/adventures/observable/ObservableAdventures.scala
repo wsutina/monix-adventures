@@ -41,7 +41,7 @@ object ObservableAdventures {
   /**
     * Create an Observable which emits each element of the source list
     */
-  def listToObservable(records: List[SourceRecord]): Observable[SourceRecord] = ???
+  def listToObservable(records: List[SourceRecord]): Observable[SourceRecord] = Observable.fromIterable(records)
 
   /**
     * Transform all of the SourceRecords to TargetRecords.  If the price cannot be converted to a double,
